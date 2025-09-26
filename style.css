@@ -1,0 +1,23 @@
+div.csl-entry {
+  margin-bottom: 1em;
+}
+
+div.sourceCode {
+  display: flex;
+}
+
+pre.sourceCode {
+  flex: auto;
+}
+
+pre.sourceCode {
+  font-size: 12px;
+}
+
+p {
+  text-align: justify;
+}
+
+img {
+  border: 1px black solid;
+}

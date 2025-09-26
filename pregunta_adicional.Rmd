@@ -1,0 +1,160 @@
+---
+title: "Ejemplo de teoría de juegos evolutiva usando el modelo de piedra-papel-tijera"
+lang: "es-MX"
+author: "Miguel Rojas"
+date: "5 de marzo de 2025"
+bibliography: teoria_juegos.bib
+csl: apa-no-ampersand-spanish-bupna.xml
+link-citations: true
+output:
+  bookdown::html_document2:
+    theme: paper
+    highlight: espresso
+    css: style.css
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = FALSE, warning = FALSE)
+```
+
+## ¿Qué es la teoría de juegos?
+
+La teoría de juegos es una rama de las matemáticas aplicadas que estudia las interacciones estratégicas [@Myerson1991], y donde los resultados dependen no únicamente de las acciones propias sino también de las acciones de los demás. Se utiliza en ramas tan diversas como la economía, la política o la biología, solo por nombrar algunos ejemplos. Fue establecida como campo de estudio por el matemático John von Neumann en la década de los 20 del siglo XX [@Neumann1928].
+
+En términos básicos, hay dos enfoques para estudiar las interacciones estratégicas, que son la **teoría de juegos clásica** y la **teoría de juegos evolutiva**.
+
+El enfoque clásico sugiere que los jugadores toman decisiones racionales, resultando en un equilibrio de Nash (EN) de estrategia mixta, en donde cada acción se elige con igual probabilidad [@Nash1950; @Osborne2004]. Sin embargo, Zhou [@Zhou2015] señala que este EN puede no ser estable ante pequeñas perturbaciones, lo que requiere considerar cómo los jugadores actualizan sus decisiones con el tiempo.
+
+Por otro lado, la teoría de juegos evolutiva se centra en la evolución de estrategias a través de mutaciones y selección en la que, en lugar de suponer que todos los participantes son completamente racionales, se considera que las estrategias más exitosas tienden a prevalecer debido a la selección natural [@Maynard1973; @Maynard1988; @Weibull1995].
+
+## Modelo Lotka-Volterra y su adaptación a la teoría de juegos
+
+Lotka y Volterra presentaron de manera independiente un modelo de ecuación diferencial para las dinámicas de depredador-presa [@Volterra1928; @Lotka1932]. Este modelo consta de dos componentes, a saber: $P$ o el número de individuos en una población de depredadores o consumidores, y $N$ o el número de presas o biomasa vegetal.
+
+Primero, partimos del modelo básico de dinámica poblacional, el cual solo toma en cuenta el número de presas y su tasa intrínseca de incremento $r$ en ausencia de depredadores:
+
+$$\frac{dN}{dt}=rN \text{ (1)}$$
+
+Si a esto le añadimos el coeficiente $a$ como la tasa de presas capturadas por unidad de tiempo y el número $P$ de depredadores, la ecuación anterior se convierte en la ecuación de Lotka-Volterra para la población de presas:
+
+$$\frac{dN}{dt}=rN-aPN\text{ (2)}$$
+
+Por otro lado, en ausencia de presas, los depredadores siguen el modelo básico de una exponencial negativa, en donde $q$ es la tasa de mortalidad de los depredadores:
+
+$$\frac{dP}{dt}=-qP\text{ (3)}$$
+
+Si ahora tomamos de **(2)** la tasa de consumo $aPN$ y la multiplicamos por la eficiencia del depredador, $f$, y la insertamos en **(3)**, obtenemos la ecuación de Lotka-Volterra para un depredador:
+
+$$\frac{dP}{dt}=faPN-qP\:(4)$$
+
+Cuando hay una cantidad considerable de presas, los depredadores tienen más alimento, lo que aumenta su *fitness* y les permite una mayor capacidad de reproducción. No obstante, cuanto mayor es la población de depredadores, la cantidad de presas disminuye, lo que reduce la disponibilidad de alimento para los depredadores y provoca una disminución en su población. Con menos depredadores, las presas pueden recuperarse y aumentar su número. De esta forma, las poblaciones muestran un **patrón cíclico**, lo que refleja una relación de interdependencia entre ambas.
+
+Zhou [@Zhou2015] hace referencia a una serie de ecuaciones que pueden considerarse como una extensión del modelo Lotka-Volterra explicado previamente:
+
+$$\frac{d\rho_{R}}{dt}=\rho_{R} \rho_{S}  w_{R\leftarrow S}-\rho_{R} \rho_{P}  w_{P\leftarrow R}\:(5.1)$$
+
+$$\frac{d\rho_{P}}{dt}=\rho_{P} \rho_{R}  w_{P\leftarrow R}-\rho_{P} \rho_{S}  w_{S\leftarrow P}\:(5.2)$$
+
+$$\frac{d\rho_{S}}{dt}=\rho_{S} \rho_{P}  w_{S\leftarrow P}-\rho_{S} \rho_{R}  w_{R\leftarrow S}\:(5.3)$$
+
+En este caso, $\rho_{R}$, $\rho_{P}$ y $\rho_{S}$ se refieren a las densidades poblacionales para las estrategias "piedra" ($R$), "papel" ($P$) y "tijera" ($S$), y el parámetro $w$ representa el grado de dominancia o cuánto una estrategia influye sobre la otra (por ejemplo, $w_{R\leftarrow S}$ indica el grado de dominancia de $R$ sobre $S$).
+
+Para simplificar la lectura de las ecuaciones, podemos expresarlas de la siguiente forma:
+
+$$\frac{d\rho_{R}}{dt}=\rho_{R} \rho_{S}  w_{1}-\rho_{R} \rho_{P}  w_{2}\:(6.1)$$
+
+$$\frac{d\rho_{P}}{dt}=\rho_{P} \rho_{R}  w_{2}-\rho_{P} \rho_{S}  w_{3}\:(6.2)$$
+
+$$\frac{d\rho_{S}}{dt}=\rho_{S} \rho_{P}  w_{3}-\rho_{S} \rho_{R}  w_{1}\:(6.3)$$
+
+Con esto en mente, podemos modelar en R un juego de tipo piedra-papel-tijera usando las ecuaciones presentadas en **(6)**.
+
+## Modelo básico de piedra-papel-tijera en lenguaje R
+
+Primero, se cargan las respectivas librerías a la sesión de R. Estas son **deSolve** [@Soetaert2010] para resolver sistemas de ecuaciones diferenciales ordinarias (EDO) como el mostrado previamente, **ggplot2** [@Wickham2016] para crear la visualización del modelo, y **tidyr** [@Wickham2024] para manipular y remodelar los datos obtenidos de la resolución del modelo.
+
+```{r}
+# Cargar librerías necesarias para la simulación
+library(deSolve)
+library(ggplot2)
+library(tidyr)
+```
+
+Ahora, definimos los parámetros iniciales. Definimos la variable `densidad_inicial` como el vector con la densidad de cada estrategia ($R$, $P$ o $S$), y la variable `intervalo` como la secuencia de puntos temporales a observar.
+
+```{r}
+# Número inicial de individuos para cada estrategia
+densidad_inicial <- c(R = 50, P = 50, S = 100)
+
+# Intervalo de 0 a 10
+intervalo <- seq(0, 10, 0.1)
+```
+
+Usando como base el código presentado en la documentación de deSolve, se define una función para el modelo de piedra-papel-tijera utilizando como principio las ecuaciones presentadas en **(6)**. Esta función cuenta con 3 parámetros: `tiempo` para establecer el intervalo en el cual se emulará el juego en cuestión, `estado` para establecer los parámetros iniciales de cada variable de las ecuaciones diferenciales (en su defecto, las densidades inciales de cada estrategia) y `parametros` para indicar el vector de grados de dominancia $\left(w_{1}, w_{2}, w_{3}\right)$.
+
+```{r}
+# Se modela la ecuación similar a Lotka-Volterra para el modelo de piedra-papel-tijera
+rps <- function(tiempo, estado, parametros){
+  with(as.list(c(estado, parametros)), {
+    dR = R*S*w1 - R*P*w2
+    dP = P*R*w2 - P*S*w3
+    dS = S*P*w3 - S*R*w1
+    return(list(c(dR, dP, dS)))
+  })
+}
+```
+
+Ahora, se establece el vector de grados de dominancia en la variable `parametros`. Para esta simulación, se realiza un juego con interacciones equilibradas (es decir, todos los parámetros son iguales). Se elige para cada uno el valor de 0,01.
+
+```{r}
+# Establecer vector de grados de dominancia (interacciones equilibradas)
+parametros <- c(w1 = 0.01, w2 = 0.01, w3 = 0.01)
+```
+
+Ahora, se resuelve el sistema de ecuaciones diferenciales ordinarias (EDO) establecido en la función `rps()` usando la función `ode()` de la librería deSolve. La función `ode()` utiliza 4 parámetros, que son: `y` para los valores iniciales de cada estrategia, `times` para establecer la secuencia temporal, `func` para computar los valores de cada estrategia en un determinado tiempo $t$, y `parms` para establecer el vector de grados de dominancia.
+
+```{r}
+# Resolver el sistema de EDO para el modelo piedra-papel-tijera
+resultado <- ode(y = densidad_inicial, times = intervalo, func = rps, parms = parametros)
+```
+
+Esto genera una matriz con 4 columnas, `(time, R, P, S)`, tal y como puede visualizarse.
+
+```{r}
+# Visualizar la matriz de valores de densidad
+head(resultado, 10)
+```
+
+Para poder graficar, necesitamos que los nombres $R$, $P$ y $S$ estén en una sola columna como una variable, a la cual vamos a llamar `estrategia`, y sus valores en otra columna, a la cual vamos a llamar `densidad`. Para ello, se convierte el resultado de la resolución del sistema de EDO en un data frame y luego se "pivotea" hacia abajo utilizando la función `pivot_longer()`.
+
+```{r}
+# Se convierten los datos en un data frame y se colocan los nombres de las estrategias en una columna y sus valores de densidad en otra
+resultado_graficar <- resultado %>%
+  as.data.frame() %>%
+  pivot_longer(cols = 2:4, names_to = 'estrategia', values_to = 'densidad')
+
+# Visualizar la matriz
+head(resultado_graficar, 10)
+```
+
+Finalmente, se grafica el resultado utilizando ggplot2, como puede observarse en la Figura \@ref(fig:interaccion-eq).
+
+```{r interaccion-eq, out.width="100%", fig.cap="Dinámica de piedra-papel-tijera utilizando el modelo Lotka-Volterra."}
+# Gráfico de la dinámica de las estrategias R, P y S a lo largo del tiempo
+ggplot(resultado_graficar, aes(x = time, y = densidad, color = factor(estrategia, levels = c('R','P','S')))) +
+  geom_line() +
+  labs(
+    x = "Tiempo",
+    y = "Densidad",
+    color = "Estrategia"
+    ) +
+  scale_color_manual(values = c("R" = "orangered", "P" = "blue", "S" = "yellow3")) +
+  theme_minimal() +
+  theme(legend.position = "top", strip.text = element_blank())
+```
+
+## Referencias
